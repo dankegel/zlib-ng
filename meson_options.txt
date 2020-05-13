@@ -1,0 +1,2 @@
+option('ZLIB_COMPAT', type : 'feature', value : 'auto', description : 'Compile with zlib compatible API', yield: true)
+option('ZLIB_ENABLE_TESTS', type : 'feature', value : 'enabled', description : 'Build test binaries', yield: true)
