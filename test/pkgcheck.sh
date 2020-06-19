@@ -5,6 +5,9 @@ set -ex
 # If suffix not set to "", default to -ng
 suffix=${suffix--ng}
 
+# Tell Apple's ar etc. to use zero timestamps
+export ZERO_AR_DATE=1
+
 # Use same compiler for make and cmake builds
 if test "$CC"x = ""x
 then
@@ -54,7 +57,26 @@ cd btmp1
   make install
 cd ..
 
-if diff --exclude '*.so*' --exclude '*.a' -Nur pkgtmp1 pkgtmp2
+repack_ar() {
+  if ! cmp --silent pkgtmp1/usr/local/lib/libz$suffix.a pkgtmp2/usr/local/lib/libz$suffix.a
+  then
+    echo "Warning: libz$suffix.a does not match.  Assuming ar needs -D option.  Unpacking..."
+    cd pkgtmp1; ar x usr/local/lib/libz$suffix.a; rm usr/local/lib/libz$suffix.a; cd ..
+    cd pkgtmp2; ar x usr/local/lib/libz$suffix.a; rm usr/local/lib/libz$suffix.a; for a in *.c.o; do b=$(echo $a | sed 's/\..*//'); mv $a $b.o; done; cd ..
+  fi
+}
+
+case $(uname) in
+FreeBSD|Linux)
+  # The ar on newer systems defaults to -D (i.e. deterministic),
+  # but FreeBSD 12.1, Debian 8, and Ubuntu 14.04 seem to not do that.
+  # I had trouble passing -D safely to the ar inside CMakeLists.txt,
+  # so punt and unpack the archive if needed before comparing.
+  repack_ar
+  ;;
+esac
+
+if diff --exclude '*.so*' -Nur pkgtmp1 pkgtmp2
 then
   echo pkgcheck-cmake-bits-identical PASS
 else
