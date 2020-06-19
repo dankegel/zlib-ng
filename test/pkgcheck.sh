@@ -1,10 +1,38 @@
 #!/bin/sh
-# Verify that the various build systems produce identical results on a Unixlike system
+# Verify that the various build systems produce identical results on a Unixlike system.
+#
+# To cross-build, install the appropriate qemu and gcc packages,
+# and set the environment variables used by configure or cmake, e.g.
+#
+# armel:
+# $ sudo apt install ninja-build diffoscope qemu gcc-arm-linux-gnueabihf libc-dev-armel-cross
+# $ export CHOST=arm-linux-gnueabihf
+# $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm.cmake -DCMAKE_C_COMPILER_TARGET=${CHOST}"
+#
+# aarch64:
+# $ sudo apt install ninja-build diffoscope qemu gcc-aarch64-linux-gnu libc-dev-arm64-cross
+# $ export CHOST=aarch64-linux-gnu
+# $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64.cmake -DCMAKE_C_COMPILER_TARGET=${CHOST}"
+#
+# ppc:
+# $ sudo apt install ninja-build diffoscope qemu gcc-powerpc-linux-gnu libc-dev-powerpc-cross
+# $ export CHOST=powerpc-linux-gnu
+# $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-powerpc.cmake"
+#
+# then
+# $ export CC=${CHOST}-gcc
+# $ sh test/pkgcheck.sh
+
 set -ex
 
 # If suffix not set to "", default to -ng
 suffix=${suffix--ng}
+# Caller can also set CMAKE_ARGS if desired
+CMAKE_ARGS=${CMAKE_ARGS}
 
+# Tell GNU's ld etc. to use Jan 1 1970 when embedding timestamps
+# Probably only needed on older systems (ubuntu 14.04?)
+#export SOURCE_DATE_EPOCH=0
 # Tell Apple's ar etc. to use zero timestamps
 export ZERO_AR_DATE=1
 
@@ -29,7 +57,7 @@ rm -rf btmp2 pkgtmp2
 mkdir btmp2 pkgtmp2
 export DESTDIR=$(pwd)/pkgtmp2
 cd btmp2
-  cmake -G Ninja ..
+  cmake -G Ninja ${CMAKE_ARGS} ..
   ninja -v
   ninja install
 cd ..
@@ -68,6 +96,15 @@ repack_ar() {
 }
 
 case $(uname) in
+Darwin)
+  # Alas, dylibs still have an embedded hash or something,
+  # so nuke it.
+  # FIXME: find a less fragile way to deal with this.
+  dylib1=$(find pkgtmp1 -type f -name '*.dylib*')
+  dylib2=$(find pkgtmp2 -type f -name '*.dylib*')
+  dd conv=notrunc if=/dev/zero of=$dylib1 skip=1337 count=16
+  dd conv=notrunc if=/dev/zero of=$dylib2 skip=1337 count=16
+  ;;
 FreeBSD|Linux)
   # The ar on newer systems defaults to -D (i.e. deterministic),
   # but FreeBSD 12.1, Debian 8, and Ubuntu 14.04 seem to not do that.
@@ -77,10 +114,13 @@ FreeBSD|Linux)
   ;;
 esac
 
-if diff --exclude '*.so*' -Nur pkgtmp1 pkgtmp2
+if diff -Nur pkgtmp1 pkgtmp2
 then
   echo pkgcheck-cmake-bits-identical PASS
 else
   echo pkgcheck-cmake-bits-identical FAIL
+  dylib1=$(find pkgtmp1 -type f -name '*.dylib*' -print -o -type f -name '*.so.*' -print)
+  dylib2=$(find pkgtmp2 -type f -name '*.dylib*' -print -o -type f -name '*.so.*' -print)
+  diffoscope $dylib1 $dylib2 | cat
   exit 1
 fi
