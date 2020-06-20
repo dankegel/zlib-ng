@@ -95,5 +95,6 @@ then
   echo pkgcheck-cmake-bits-identical PASS
 else
   echo pkgcheck-cmake-bits-identical FAIL
+  diffoscope pkgtmp?/usr/local/lib/libz-ng.so.1.*.*
   exit 1
 fi

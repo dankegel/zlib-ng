@@ -47,6 +47,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ${{ matrix.packages }}
+        sudo apt-get install -y diffoscope || true
 
     - name: Compare output of configure and cmake
       run: |
