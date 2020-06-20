@@ -679,6 +679,8 @@ if(WITH_OPTIM)
             # For ARM aarch64, we need to check WITH_NEON first
             if("${ARCH}" MATCHES "arm" OR NOT WITH_NEON)
                 add_intrinsics_option("${ACLEFLAG}" ${ACLE_SRCS})
+            elseif("${ARCH}" MATCHES "aarch64")
+                add_intrinsics_option("${NEONFLAG}" ${ACLE_SRCS})
             endif()
             list(APPEND ZLIB_ARCH_SRCS ${ACLE_SRCS})
             add_feature_info(ACLE_CRC 1 "Support ACLE optimized CRC hash generation, using \"${ACLEFLAG}\"")
