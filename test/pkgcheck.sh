@@ -9,7 +9,7 @@ If --zlib-compat, tests with zlib compatible builds.
 
 To build the 32 bit version for the current 64 bit arch:
 
-$ sudo apt install ninja-build gcc-multilib
+$ sudo apt install ninja-build diffoscope gcc-multilib
 $ export CMAKE_ARGS="-DCMAKE_C_FLAGS=-m32" LDFLAGS=-m32
 $ sh test/pkgcheck.sh
 
@@ -18,22 +18,22 @@ and set the environment variables used by configure or cmake.
 On Ubuntu, for example (values taken from .github/workflows/pkgconf.yml):
 
 arm HF:
-$ sudo apt install ninja-build qemu gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+$ sudo apt install ninja-build diffoscope qemu gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
 $ export CHOST=arm-linux-gnueabihf
 $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm.cmake -DCMAKE_C_COMPILER_TARGET=${CHOST}"
 
 aarch64:
-$ sudo apt install ninja-build qemu gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+$ sudo apt install ninja-build diffoscope qemu gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 $ export CHOST=aarch64-linux-gnu
 $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64.cmake -DCMAKE_C_COMPILER_TARGET=${CHOST}"
 
 ppc (32 bit big endian):
-$ sudo apt install ninja-build qemu gcc-powerpc-linux-gnu libc6-dev-powerpc-cross
+$ sudo apt install ninja-build diffoscope qemu gcc-powerpc-linux-gnu libc6-dev-powerpc-cross
 $ export CHOST=powerpc-linux-gnu
 $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-powerpc.cmake"
 
 ppc64le:
-$ sudo apt install ninja-build qemu gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
+$ sudo apt install ninja-build diffoscope qemu gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
 $ export CHOST=powerpc64le-linux-gnu
 $ export CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-powerpc64le.cmake"
 
@@ -145,6 +145,16 @@ repack_ar() {
   fi
 }
 
+case $(uname) in
+Darwin)
+  # Remove the build uuid.
+  dylib1=$(find pkgtmp1 -type f -name '*.dylib*')
+  dylib2=$(find pkgtmp2 -type f -name '*.dylib*')
+  strip -x -no_uuid "$dylib1"
+  strip -x -no_uuid "$dylib2"
+  ;;
+esac
+
 # The ar on newer systems defaults to -D (i.e. deterministic),
 # but FreeBSD 12.1, Debian 8, and Ubuntu 14.04 seem to not do that.
 # I had trouble passing -D safely to the ar inside CMakeLists.txt,
@@ -152,11 +162,14 @@ repack_ar() {
 # Also, cmake uses different .o suffix anyway...
 repack_ar
 
-if diff --exclude '*.dylib*' --exclude '*.so*' -Nur pkgtmp1 pkgtmp2
+if diff -Nur pkgtmp1 pkgtmp2
 then
   echo pkgcheck-cmake-bits-identical PASS
 else
   echo pkgcheck-cmake-bits-identical FAIL
+  dylib1=$(find pkgtmp1 -type f -name '*.dylib*' -print -o -type f -name '*.so.*' -print)
+  dylib2=$(find pkgtmp2 -type f -name '*.dylib*' -print -o -type f -name '*.so.*' -print)
+  diffoscope $dylib1 $dylib2 | cat
   exit 1
 fi
 
