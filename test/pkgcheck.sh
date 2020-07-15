@@ -125,8 +125,8 @@ cd btmp1
     ;;
   esac
   # Use same flags as cmake did.
-  CFLAGS="$(awk -F= '/CMAKE_C_FLAGS:/ {print $2}' < ../btmp2/CMakeCache.txt | tr '\012' ' ')"
-  export CFLAGS
+  #CFLAGS="$(awk -F= '/CMAKE_C_FLAGS:/ {print $2}' < ../btmp2/CMakeCache.txt | tr '\012' ' ')"
+  #export CFLAGS
   ../configure $CONFIGURE_ARGS
   make
   make install
